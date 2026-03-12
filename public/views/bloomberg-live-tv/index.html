@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bloomberg Live TV</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+      video { width: 100%; height: 100%; display: block; background: #000; }
+      #status {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        color: #fff; gap: 12px; pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      #status .logo { font-size: 26px; font-weight: 700; letter-spacing: 3px; color: #f00; }
+      #status .msg  { font-size: 13px; color: #999; letter-spacing: 1px; }
+      #status.hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <video id="video" autoplay controls></video>
+    <div id="status">
+      <div class="logo">BLOOMBERG</div>
+      <div class="msg">Connecting to live stream&hellip;</div>
+    </div>
+
+    <script>
+      const video  = document.getElementById('video');
+      const status = document.getElementById('status');
+
+      video.src = 'http://localhost:8080/bloomberg-stream';
+
+      video.addEventListener('playing', () => status.classList.add('hidden'));
+      video.addEventListener('waiting', () => status.classList.remove('hidden'));
+      video.addEventListener('error',   () => {
+        document.querySelector('.msg').textContent = 'Stream error — check server logs';
+      });
+    </script>
+  </body>
+</html>
