@@ -80,3 +80,64 @@ For a more detailed look at how each component is used please see the individual
 This is an example of how to use our APIs to configure HERE Core UI. It's purpose is to provide an example and provide suggestions. This is not a production application and shouldn't be treated as such. Please use this as a guide and provide feedback. Thanks!
 
 ---
+
+## Bloomberg Live TV App
+
+The Bloomberg Live TV app streams live Bloomberg Television directly inside a HERE Core UI window. It uses a local ffmpeg transcoding proxy to convert Bloomberg's H.264 HLS stream to VP8/WebM, which is required because OpenFin's Chromium runtime does not ship with proprietary H.264 codec support.
+
+### Prerequisites
+
+- **Node.js 20+** — install via [nodejs.org](https://nodejs.org) or `winget install OpenJS.NodeJS.LTS`
+- **ffmpeg (full build with H.264 support)** — install via `winget install Gyan.FFmpeg`
+
+After installing ffmpeg, update the `FFMPEG` path constant in `scripts/serve.mjs` to match your ffmpeg installation:
+
+```js
+// scripts/serve.mjs
+const FFMPEG = 'C:\\path\\to\\ffmpeg.exe';
+```
+
+To find your ffmpeg path after installation:
+
+```shell
+where ffmpeg
+```
+
+### Starting the Platform
+
+Two terminals are required every time you start:
+
+**Terminal 1 — HTTP server + transcoding proxy:**
+
+```shell
+node scripts/serve.mjs
+```
+
+This serves the platform files on `http://localhost:8080` and exposes the Bloomberg transcoding proxy at `http://localhost:8080/bloomberg-stream`.
+
+**Terminal 2 — HERE runtime:**
+
+```shell
+node scripts/launch.mjs
+```
+
+This launches the HERE Core UI runtime and connects it to the local manifest.
+
+### Using Bloomberg Live TV
+
+1. With both terminals running, the HERE Dock will appear on screen.
+2. Press `Ctrl+Space` to open Home (search).
+3. Type **Bloomberg** and press Enter, or find it in the Store.
+4. The app will open in a HERE browser window — expect a ~10–15 second startup delay while ffmpeg buffers the stream.
+5. The window can be docked, tiled, or added to any workspace layout.
+
+### How the Transcoding Proxy Works
+
+Bloomberg's live stream (`phoenix-us.m3u8`) is standard H.264/AAC in HLS format. OpenFin's Chromium runtime cannot decode H.264 without a proprietary codec library. The proxy in `scripts/serve.mjs` solves this by:
+
+1. Spawning an ffmpeg process when the Bloomberg app is opened
+2. Fetching the Bloomberg HLS stream directly
+3. Transcoding in real time to VP8/Vorbis WebM (natively supported by Chromium)
+4. Piping the output to the browser via a chunked HTTP response at `/bloomberg-stream`
+
+The ffmpeg process is automatically killed when the browser window is closed.
