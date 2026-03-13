@@ -17,7 +17,15 @@ public static unsafe class Transcoder
         ffmpeg.av_log_set_level((int)Sdcb.FFmpeg.Raw.LogLevel.Quiet);
 
         // ── Input ────────────────────────────────────────────────────────────
-        using FormatContext ic = FormatContext.OpenInputUrl(inputUrl);
+        // Bloomberg's CDN requires browser-like headers; without them the request
+        // times out (AVERROR(ETIMEDOUT) = -138) on machines without a warm cache.
+        using MediaDictionary inputOpts = new();
+        inputOpts["user_agent"]    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        inputOpts["headers"]       = "Referer: https://www.bloomberg.com/\r\nOrigin: https://www.bloomberg.com\r\n";
+        inputOpts["reconnect"]     = "1";
+        inputOpts["reconnect_streamed"] = "1";
+
+        using FormatContext ic = FormatContext.OpenInputUrl(inputUrl, null, inputOpts);
         ic.LoadStreamInfo();
 
         int vsi = -1, asi = -1;
