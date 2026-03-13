@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "CHmLuoEY4VU=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Ian\\Code\\Claude\\here-workspace\\bloomberg-proxy\\BloombergProxy.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Ian\\.nuget\\packages\\ffmpegcore\\5.1.0\\ffmpegcore.5.1.0.nupkg.sha512",
+    "C:\\Users\\Ian\\.nuget\\packages\\instances\\3.0.0\\instances.3.0.0.nupkg.sha512",
+    "C:\\Users\\Ian\\.nuget\\packages\\system.text.encodings.web\\7.0.0\\system.text.encodings.web.7.0.0.nupkg.sha512",
+    "C:\\Users\\Ian\\.nuget\\packages\\system.text.json\\7.0.2\\system.text.json.7.0.2.nupkg.sha512"
+  ],
+  "logs": []
+}

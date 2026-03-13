@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using FFMpegCore;
+using BloombergProxy;
 using Microsoft.Extensions.FileProviders;
 
 const string BloombergStream = "https://www.bloomberg.com/media-manifest/streams/phoenix-us.m3u8";
@@ -7,17 +6,6 @@ const string BloombergStream = "https://www.bloomberg.com/media-manifest/streams
 var builder = WebApplication.CreateBuilder(args);
 
 var app = builder.Build();
-
-// Configure ffmpeg binary location from appsettings.json
-var ffmpegPath = app.Configuration["FFmpeg:Path"]
-    ?? throw new InvalidOperationException("FFmpeg:Path is not configured in appsettings.json");
-
-// Use FFMpegCore to resolve and validate the ffmpeg binary folder
-GlobalFFOptions.Configure(opts =>
-{
-    opts.BinaryFolder = Path.GetDirectoryName(ffmpegPath)!;
-    opts.TemporaryFilesFolder = Path.GetTempPath();
-});
 
 // Serve static files from the ../public directory
 var publicPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "public"));
@@ -33,8 +21,8 @@ if (Directory.Exists(publicPath))
 }
 
 // Bloomberg live TV transcoding endpoint.
-// Spawns ffmpeg to fetch Bloomberg's HLS stream (H.264/AAC) and transcode it
-// to VP8/Vorbis WebM — which OpenFin's Chromium can play without proprietary codecs.
+// Uses Sdcb.FFmpeg (bundled native libraries) to transcode Bloomberg's
+// H.264/AAC HLS stream to VP8/Vorbis WebM in-process — no external ffmpeg install required.
 app.MapGet("/bloomberg-stream", async (HttpContext ctx, CancellationToken ct) =>
 {
     ctx.Response.ContentType = "video/webm";
@@ -43,61 +31,22 @@ app.MapGet("/bloomberg-stream", async (HttpContext ctx, CancellationToken ct) =>
 
     Console.WriteLine("[Bloomberg] Client connected — starting transcode");
 
-    var args = string.Join(" ",
-        $"-i \"{BloombergStream}\"",
-        "-vcodec libvpx",
-        "-b:v 1500k",
-        "-crf 10",
-        "-acodec libvorbis",
-        "-b:a 128k",
-        "-f webm",
-        "-deadline realtime",
-        "-cpu-used 8",
-        "pipe:1"
-    );
-
-    using var process = new Process
-    {
-        StartInfo = new ProcessStartInfo
-        {
-            FileName = ffmpegPath,
-            Arguments = args,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        }
-    };
-
-    process.Start();
-
-    // Drain stderr to prevent the process from blocking
-    _ = Task.Run(async () =>
-    {
-        while (await process.StandardError.ReadLineAsync() != null) { }
-    }, CancellationToken.None);
-
     try
     {
-        await process.StandardOutput.BaseStream.CopyToAsync(ctx.Response.Body, ct);
+        await Task.Run(() => Transcoder.TranscodeHlsToWebM(BloombergStream, ctx.Response.Body, ct), ct);
     }
     catch (OperationCanceledException)
     {
         Console.WriteLine("[Bloomberg] Client disconnected");
     }
-    finally
+    catch (Exception ex)
     {
-        if (!process.HasExited)
-        {
-            process.Kill();
-            Console.WriteLine("[Bloomberg] ffmpeg process killed");
-        }
+        Console.WriteLine($"[Bloomberg] Error: {ex.Message}");
     }
 });
 
 var port = app.Configuration["Server:Port"] ?? "8080";
 Console.WriteLine($"[Server] Listening on http://localhost:{port}");
 Console.WriteLine($"[Server] Serving static files from: {publicPath}");
-Console.WriteLine($"[Server] FFmpeg: {ffmpegPath}");
 
 app.Run($"http://localhost:{port}");

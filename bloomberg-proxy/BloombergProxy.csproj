@@ -5,12 +5,14 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>BloombergProxy</AssemblyName>
     <RootNamespace>BloombergProxy</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FFMpegCore" Version="5.1.0" />
+    <PackageReference Include="Sdcb.FFmpeg" Version="6.0.0" />
+    <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="6.0.0" />
   </ItemGroup>
 
 </Project>
