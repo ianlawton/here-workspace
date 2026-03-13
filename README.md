@@ -85,27 +85,39 @@ This is an example of how to use our APIs to configure HERE Core UI. It's purpos
 
 The Bloomberg Live TV app streams live Bloomberg Television directly inside a HERE Core UI window. It uses a local ffmpeg transcoding proxy to convert Bloomberg's H.264 HLS stream to VP8/WebM, which is required because OpenFin's Chromium runtime does not ship with proprietary H.264 codec support.
 
-### Prerequisites
+Two server implementations are provided — use whichever suits your stack:
 
-- **Node.js 20+** — install via [nodejs.org](https://nodejs.org) or `winget install OpenJS.NodeJS.LTS`
-- **ffmpeg (full build with H.264 support)** — install via `winget install Gyan.FFmpeg`
+| | Node.js | .NET Core (C#) |
+|---|---|---|
+| Entry point | `scripts/serve.mjs` | `bloomberg-proxy/` |
+| Runtime required | Node.js 20+ | .NET 9 SDK |
+| Config | Edit constant in `serve.mjs` | `bloomberg-proxy/appsettings.json` |
 
-After installing ffmpeg, update the `FFMPEG` path constant in `scripts/serve.mjs` to match your ffmpeg installation:
+### Prerequisites (both versions)
 
-```js
-// scripts/serve.mjs
-const FFMPEG = 'C:\\path\\to\\ffmpeg.exe';
+**ffmpeg (full build with H.264 support):**
+
+```shell
+winget install Gyan.FFmpeg
 ```
 
-To find your ffmpeg path after installation:
+After installing, find the path to `ffmpeg.exe`:
 
 ```shell
 where ffmpeg
 ```
 
-### Starting the Platform
+---
 
-Two terminals are required every time you start:
+### Option 1 — Node.js Server
+
+**Additional requirement:** Node.js 20+ (`winget install OpenJS.NodeJS.LTS`)
+
+Update the `FFMPEG` path constant in `scripts/serve.mjs`:
+
+```js
+const FFMPEG = 'C:\\path\\to\\ffmpeg.exe';
+```
 
 **Terminal 1 — HTTP server + transcoding proxy:**
 
@@ -113,7 +125,41 @@ Two terminals are required every time you start:
 node scripts/serve.mjs
 ```
 
-This serves the platform files on `http://localhost:8080` and exposes the Bloomberg transcoding proxy at `http://localhost:8080/bloomberg-stream`.
+**Terminal 2 — HERE runtime:**
+
+```shell
+node scripts/launch.mjs
+```
+
+---
+
+### Option 2 — .NET Core Server
+
+**Additional requirement:** .NET 9 SDK (`winget install Microsoft.DotNet.SDK.9`)
+
+Update the ffmpeg path in `bloomberg-proxy/appsettings.json`:
+
+```json
+{
+  "FFmpeg": {
+    "Path": "C:\\path\\to\\ffmpeg.exe"
+  }
+}
+```
+
+**Build the project:**
+
+```shell
+cd bloomberg-proxy
+dotnet build
+```
+
+**Terminal 1 — HTTP server + transcoding proxy:**
+
+```shell
+cd bloomberg-proxy
+dotnet run
+```
 
 **Terminal 2 — HERE runtime:**
 
@@ -121,7 +167,7 @@ This serves the platform files on `http://localhost:8080` and exposes the Bloomb
 node scripts/launch.mjs
 ```
 
-This launches the HERE Core UI runtime and connects it to the local manifest.
+---
 
 ### Using Bloomberg Live TV
 
@@ -133,7 +179,7 @@ This launches the HERE Core UI runtime and connects it to the local manifest.
 
 ### How the Transcoding Proxy Works
 
-Bloomberg's live stream (`phoenix-us.m3u8`) is standard H.264/AAC in HLS format. OpenFin's Chromium runtime cannot decode H.264 without a proprietary codec library. The proxy in `scripts/serve.mjs` solves this by:
+Bloomberg's live stream (`phoenix-us.m3u8`) is standard H.264/AAC in HLS format. OpenFin's Chromium runtime cannot decode H.264 without a proprietary codec library. Both proxy implementations solve this by:
 
 1. Spawning an ffmpeg process when the Bloomberg app is opened
 2. Fetching the Bloomberg HLS stream directly
