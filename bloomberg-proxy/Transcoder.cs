@@ -14,6 +14,8 @@ public static unsafe class Transcoder
 {
     public static void TranscodeHlsToWebM(string inputUrl, Stream output, CancellationToken ct)
     {
+        ffmpeg.av_log_set_level((int)Sdcb.FFmpeg.Raw.LogLevel.Quiet);
+
         // ── Input ────────────────────────────────────────────────────────────
         using FormatContext ic = FormatContext.OpenInputUrl(inputUrl);
         ic.LoadStreamInfo();
