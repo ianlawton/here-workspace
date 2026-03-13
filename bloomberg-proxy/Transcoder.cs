@@ -8,7 +8,7 @@ namespace BloombergProxy;
 
 /// <summary>
 /// Transcodes an HLS stream (H.264/AAC) to WebM (VP8/Vorbis) in-process
-/// using the Sdcb.FFmpeg native library bindings, writing output to a Stream.
+/// using Sdcb.FFmpeg native library bindings, writing output to a Stream.
 /// </summary>
 public static unsafe class Transcoder
 {
@@ -18,62 +18,69 @@ public static unsafe class Transcoder
         using FormatContext ic = FormatContext.OpenInputUrl(inputUrl);
         ic.LoadStreamInfo();
 
-        int vsi = ic.FindBestStreamIndex(AVMediaType.Video);
-        int asi = ic.FindBestStreamIndex(AVMediaType.Audio);
+        // Find best video/audio stream by iterating (no FindBestStreamIndex in 6.0.x)
+        int vsi = -1, asi = -1;
+        for (int i = 0; i < ic.Streams.Count; i++)
+        {
+            AVMediaType type = ic.Streams[i].Codecpar!.CodecType;
+            if (type == AVMediaType.Video && vsi < 0) vsi = i;
+            if (type == AVMediaType.Audio && asi < 0) asi = i;
+        }
         if (vsi < 0) throw new InvalidOperationException("No video stream found");
 
         MediaStream vStream = ic.Streams[vsi];
 
-        // ── Decoders ─────────────────────────────────────────────────────────
+        // ── Video decoder ────────────────────────────────────────────────────
         using CodecContext vDec = new(Codec.FindDecoderById(vStream.Codecpar!.CodecId));
         vDec.FillParameters(vStream.Codecpar);
         vDec.Open();
 
+        // ── Audio decoder (optional) ─────────────────────────────────────────
         CodecContext? aDec = null;
-        MediaStream? aStream = asi >= 0 ? ic.Streams[asi] : null;
-        if (aStream != null)
+        if (asi >= 0)
         {
+            MediaStream aStream = ic.Streams[asi];
             aDec = new CodecContext(Codec.FindDecoderById(aStream.Codecpar!.CodecId));
             aDec.FillParameters(aStream.Codecpar);
             aDec.Open();
         }
 
-        // ── VP8 encoder ──────────────────────────────────────────────────────
+        // ── VP8 video encoder ────────────────────────────────────────────────
         Codec vpx = Codec.FindEncoderByName("libvpx")
-            ?? throw new InvalidOperationException("libvpx not found — is it included in the bundled FFmpeg build?");
+            ?? throw new InvalidOperationException("libvpx not found — bundled FFmpeg build may not include it");
 
         using CodecContext vEnc = new(vpx);
         vEnc.Width       = vDec.Width;
         vEnc.Height      = vDec.Height;
         vEnc.PixelFormat = AVPixelFormat.Yuv420p;
         vEnc.TimeBase    = vStream.TimeBase;
-        vEnc.Framerate   = ic.GuessFrameRate(vStream);
+        vEnc.Framerate   = vStream.AvgFrameRate;
         vEnc.BitRate     = 1_500_000;
-        vEnc.SetOption("deadline", "realtime");
-        vEnc.SetOption("cpu-used", "8");
+        // av_opt_set for VP8-specific options (SetOption not in managed wrapper)
+        ffmpeg.av_opt_set((AVCodecContext*)vEnc, "deadline", "realtime", (int)AV_OPT_SEARCH.Children);
+        ffmpeg.av_opt_set((AVCodecContext*)vEnc, "cpu-used", "8",        (int)AV_OPT_SEARCH.Children);
         vEnc.Open(vpx);
 
-        // ── Vorbis encoder ───────────────────────────────────────────────────
+        // ── Vorbis audio encoder ─────────────────────────────────────────────
         CodecContext? aEnc = null;
-        if (aDec != null)
+        if (aDec is not null)
         {
             Codec vorbis = Codec.FindEncoderByName("libvorbis")
-                ?? throw new InvalidOperationException("libvorbis not found — is it included in the bundled FFmpeg build?");
+                ?? throw new InvalidOperationException("libvorbis not found — bundled FFmpeg build may not include it");
 
             aEnc = new CodecContext(vorbis);
             aEnc.SampleRate   = aDec.SampleRate;
             aEnc.ChLayout     = aDec.ChLayout;
             aEnc.SampleFormat = AVSampleFormat.Fltp;
             aEnc.BitRate      = 128_000;
-            aEnc.TimeBase     = new AVRational { num = 1, den = aDec.SampleRate };
+            aEnc.TimeBase     = new AVRational { Num = 1, Den = aDec.SampleRate };
             aEnc.Open(vorbis);
         }
 
-        // ── Custom AVIO context writing to the response stream ───────────────
-        GCHandle streamHandle  = GCHandle.Alloc(output);
-        // Keep delegate alive for the duration of the transcode
+        // ── Custom AVIO: write FFmpeg output directly to the response stream ──
+        GCHandle streamHandle   = GCHandle.Alloc(output);
         avio_alloc_context_write_packet writeCallback = WritePacket;
-        GCHandle delegateHandle = GCHandle.Alloc(writeCallback);
+        GCHandle delegateHandle = GCHandle.Alloc(writeCallback); // prevent GC collection
 
         byte* ioBuf = (byte*)ffmpeg.av_malloc(4096);
         AVIOContext* avio = ffmpeg.avio_alloc_context(
@@ -82,19 +89,22 @@ public static unsafe class Transcoder
             null, writeCallback, null);
 
         // ── Output format context (WebM) ─────────────────────────────────────
-        using FormatContext oc = FormatContext.AllocOutput("webm");
-        oc.Pb = avio;
+        OutputFormat webm = OutputFormat.All.First(f => f.Name == "webm");
+        using FormatContext oc = FormatContext.AllocOutput(webm);
+        // Wire up the custom AVIO context via raw pointer
+        ((AVFormatContext*)oc)->pb = avio;
 
         MediaStream ovs = oc.NewStream(vEnc.Codec);
         ovs.Codecpar!.CopyFrom(vEnc);
         ovs.TimeBase = vEnc.TimeBase;
 
-        MediaStream? oas = null;
-        if (aEnc != null)
+        MediaStream oasValue = default;
+        bool hasAudio = aEnc is not null;
+        if (aEnc is not null)
         {
-            oas = oc.NewStream(aEnc.Codec);
-            oas.Codecpar!.CopyFrom(aEnc);
-            oas.TimeBase = aEnc.TimeBase;
+            oasValue = oc.NewStream(aEnc.Codec);
+            oasValue.Codecpar!.CopyFrom(aEnc);
+            oasValue.TimeBase = aEnc.TimeBase;
         }
 
         oc.WriteHeader();
@@ -111,19 +121,16 @@ public static unsafe class Transcoder
             {
                 if (pkt.StreamIndex == vsi)
                     TranscodePacket(vDec, vEnc, pkt, frame, oc, ovs);
-                else if (pkt.StreamIndex == asi && aDec != null && aEnc != null && oas != null)
-                    TranscodePacket(aDec, aEnc, pkt, frame, oc, oas);
+                else if (pkt.StreamIndex == asi && aDec is not null && aEnc is not null && hasAudio)
+                    TranscodePacket(aDec, aEnc, pkt, frame, oc, oasValue);
             }
-            finally
-            {
-                pkt.Unref();
-            }
+            finally { pkt.Unref(); }
         }
 
-        // ── Flush ────────────────────────────────────────────────────────────
+        // ── Flush encoders ───────────────────────────────────────────────────
         FlushEncoder(vEnc, frame, oc, ovs);
-        if (aEnc != null && oas != null)
-            FlushEncoder(aEnc, frame, oc, oas);
+        if (aEnc is not null && hasAudio)
+            FlushEncoder(aEnc, frame, oc, oasValue);
 
         oc.WriteTrailer();
 
@@ -151,8 +158,8 @@ public static unsafe class Transcoder
             while (enc.ReceivePacket(outPkt) == 0)
             {
                 outPkt.StreamIndex = outStream.Index;
-                outPkt.RescaleTs(enc.TimeBase, outStream.TimeBase);
-                oc.InterleavedWriteFrame(outPkt);
+                ffmpeg.av_packet_rescale_ts((AVPacket*)outPkt, enc.TimeBase, outStream.TimeBase);
+                ffmpeg.av_interleaved_write_frame((AVFormatContext*)oc, (AVPacket*)outPkt);
             }
         }
     }
@@ -166,8 +173,8 @@ public static unsafe class Transcoder
         while (enc.ReceivePacket(outPkt) == 0)
         {
             outPkt.StreamIndex = outStream.Index;
-            outPkt.RescaleTs(enc.TimeBase, outStream.TimeBase);
-            oc.InterleavedWriteFrame(outPkt);
+            ffmpeg.av_packet_rescale_ts((AVPacket*)outPkt, enc.TimeBase, outStream.TimeBase);
+            ffmpeg.av_interleaved_write_frame((AVFormatContext*)oc, (AVPacket*)outPkt);
         }
     }
 
@@ -181,9 +188,6 @@ public static unsafe class Transcoder
             stream.Flush();
             return bufSize;
         }
-        catch
-        {
-            return ffmpeg.AVERROR_EOF;
-        }
+        catch { return ffmpeg.AVERROR_EOF; }
     }
 }
