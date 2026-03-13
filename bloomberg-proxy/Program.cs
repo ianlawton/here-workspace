@@ -1,5 +1,5 @@
+using System.Diagnostics;
 using FFMpegCore;
-using FFMpegCore.Pipes;
 using Microsoft.Extensions.FileProviders;
 
 const string BloombergStream = "https://www.bloomberg.com/media-manifest/streams/phoenix-us.m3u8";
@@ -12,6 +12,7 @@ var app = builder.Build();
 var ffmpegPath = app.Configuration["FFmpeg:Path"]
     ?? throw new InvalidOperationException("FFmpeg:Path is not configured in appsettings.json");
 
+// Use FFMpegCore to resolve and validate the ffmpeg binary folder
 GlobalFFOptions.Configure(opts =>
 {
     opts.BinaryFolder = Path.GetDirectoryName(ffmpegPath)!;
@@ -31,44 +32,68 @@ if (Directory.Exists(publicPath))
     });
 }
 
-// Bloomberg live TV transcoding endpoint
-// Fetches the Bloomberg HLS stream and transcodes H.264 -> VP8/Vorbis WebM
-// so that OpenFin's Chromium (which lacks proprietary H.264 codec) can play it.
+// Bloomberg live TV transcoding endpoint.
+// Spawns ffmpeg to fetch Bloomberg's HLS stream (H.264/AAC) and transcode it
+// to VP8/Vorbis WebM — which OpenFin's Chromium can play without proprietary codecs.
 app.MapGet("/bloomberg-stream", async (HttpContext ctx, CancellationToken ct) =>
 {
     ctx.Response.ContentType = "video/webm";
     ctx.Response.Headers["Cache-Control"] = "no-cache";
     ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
-    ctx.Response.Headers["Transfer-Encoding"] = "chunked";
 
     Console.WriteLine("[Bloomberg] Client connected — starting transcode");
 
-    var sink = new StreamPipeSink(ctx.Response.Body);
+    var args = string.Join(" ",
+        $"-i \"{BloombergStream}\"",
+        "-vcodec libvpx",
+        "-b:v 1500k",
+        "-crf 10",
+        "-acodec libvorbis",
+        "-b:a 128k",
+        "-f webm",
+        "-deadline realtime",
+        "-cpu-used 8",
+        "pipe:1"
+    );
+
+    using var process = new Process
+    {
+        StartInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }
+    };
+
+    process.Start();
+
+    // Log ffmpeg stderr so we can see codec/network errors in the console
+    _ = Task.Run(async () =>
+    {
+        string? line;
+        while ((line = await process.StandardError.ReadLineAsync()) != null)
+            Console.WriteLine($"[ffmpeg] {line}");
+    }, CancellationToken.None);
 
     try
     {
-        await FFMpegArguments
-            .FromUrlInput(new Uri(BloombergStream), inputOptions => inputOptions
-                .WithCustomArgument("-re"))
-            .OutputToPipe(sink, outputOptions => outputOptions
-                .WithVideoCodec("libvpx")
-                .WithCustomArgument("-b:v 1500k")
-                .WithCustomArgument("-crf 10")
-                .WithAudioCodec("libvorbis")
-                .WithCustomArgument("-b:a 128k")
-                .ForceFormat("webm")
-                .WithCustomArgument("-deadline realtime")
-                .WithCustomArgument("-cpu-used 8"))
-            .CancellableThrough(ct)
-            .ProcessAsynchronously();
+        await process.StandardOutput.BaseStream.CopyToAsync(ctx.Response.Body, ct);
     }
     catch (OperationCanceledException)
     {
-        Console.WriteLine("[Bloomberg] Client disconnected — ffmpeg process killed");
+        Console.WriteLine("[Bloomberg] Client disconnected");
     }
-    catch (Exception ex)
+    finally
     {
-        Console.WriteLine($"[Bloomberg] Error: {ex.Message}");
+        if (!process.HasExited)
+        {
+            process.Kill();
+            Console.WriteLine("[Bloomberg] ffmpeg process killed");
+        }
     }
 });
 
