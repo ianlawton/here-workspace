@@ -71,12 +71,10 @@ app.MapGet("/bloomberg-stream", async (HttpContext ctx, CancellationToken ct) =>
 
     process.Start();
 
-    // Log ffmpeg stderr so we can see codec/network errors in the console
+    // Drain stderr to prevent the process from blocking
     _ = Task.Run(async () =>
     {
-        string? line;
-        while ((line = await process.StandardError.ReadLineAsync()) != null)
-            Console.WriteLine($"[ffmpeg] {line}");
+        while (await process.StandardError.ReadLineAsync() != null) { }
     }, CancellationToken.None);
 
     try
