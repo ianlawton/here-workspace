@@ -1,3 +1,7 @@
 node_modules/
 *.gif
 workspace-platform-starter-basic.gif
+
+# .NET build output
+bloomberg-proxy/bin/
+bloomberg-proxy/obj/
