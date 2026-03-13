@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 const string BloombergStream = "https://www.bloomberg.com/media-manifest/streams/phoenix-us.m3u8";
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(o => o.AllowSynchronousIO = true);
 
 var app = builder.Build();
 

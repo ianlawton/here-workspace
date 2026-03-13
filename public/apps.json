@@ -8,7 +8,7 @@
 		"manifestType": "view",
 		"icons": [
 			{
-				"src": "http://localhost:8080/common/images/favicon-32x32.png"
+				"src": "http://localhost:8080/views/bloomberg-live-tv/bloomberg-logo.png"
 			}
 		],
 		"contactEmail": "contact@example.com",
