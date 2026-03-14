@@ -202,14 +202,22 @@
 
   // ── Theming ───────────────────────────────────────────────────────────
   function applyScheme(scheme) {
+    if (scheme === 'system') scheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', scheme === 'dark');
   }
 
   async function initTheme() {
+    // Apply dark immediately — workspace defaults to dark
+    applyScheme('dark');
+
     try {
-      const scheme = await fin.Platform.Theme.getSelectedScheme();
-      applyScheme(scheme);
-      fin.Platform.Theme.addEventListener('scheme-changed', e => applyScheme(e.scheme));
+      fin.InterApplicationBus.subscribe({ uuid: '*' }, 'color-scheme', (scheme) => {
+        applyScheme(scheme);
+      }).then(() => {
+        // Request current scheme once subscribed; retry after 2s in case provider wasn't ready
+        fin.InterApplicationBus.publish('color-scheme-request', null);
+        setTimeout(() => fin.InterApplicationBus.publish('color-scheme-request', null), 2000);
+      });
     } catch {
       // Not running inside OpenFin — respect OS preference as fallback
       applyScheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

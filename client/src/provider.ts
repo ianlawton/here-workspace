@@ -1,6 +1,6 @@
 import type OpenFin from "@openfin/core";
 import { Dock, Home, Storefront, type App } from "@openfin/workspace";
-import { CustomActionCallerType, init } from "@openfin/workspace-platform";
+import { CustomActionCallerType, getCurrentSync, init } from "@openfin/workspace-platform";
 import * as Notifications from "@openfin/workspace/notifications";
 import { register as registerDock } from "./dock";
 import { register as registerHome } from "./home";
@@ -80,6 +80,31 @@ async function initializeWorkspacePlatform(
 			}
 		}
 	});
+
+	// Bridge theme to views via InterApplicationBus
+	// Theme API is only available via the workspace-platform SDK's getCurrentSync()
+	try {
+		const wsPlatform = getCurrentSync();
+		let lastScheme = await wsPlatform.Theme.getSelectedScheme();
+		await fin.InterApplicationBus.publish('color-scheme', lastScheme);
+
+		// Respond to on-demand requests from views
+		await fin.InterApplicationBus.subscribe({ uuid: '*' }, 'color-scheme-request', async () => {
+			const scheme = await wsPlatform.Theme.getSelectedScheme();
+			await fin.InterApplicationBus.publish('color-scheme', scheme);
+		});
+
+		// Poll for scheme changes (no event API available in this SDK version)
+		setInterval(async () => {
+			const scheme = await wsPlatform.Theme.getSelectedScheme();
+			if (scheme !== lastScheme) {
+				lastScheme = scheme;
+				await fin.InterApplicationBus.publish('color-scheme', scheme);
+			}
+		}, 1000);
+	} catch (err) {
+		console.error('[Provider] Theme bridge error:', err);
+	}
 }
 
 /**
