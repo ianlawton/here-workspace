@@ -7,52 +7,76 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── Theme tokens ────────────────────────────────────────────────── */
+    :root {
+      --bg:           #f4f4f4;
+      --surface:      #ffffff;
+      --text:         #111111;
+      --text-sec:     #555555;
+      --text-muted:   #999999;
+      --border:       #e8e8e8;
+      --shadow:       rgba(0,0,0,.08);
+      --shadow-hover: rgba(0,0,0,.14);
+      --placeholder:  #eeeeee;
+      --accent:       #d0021b;
+    }
+
+    :root.dark {
+      --bg:           #111111;
+      --surface:      #1e1e1e;
+      --text:         #e8e8e8;
+      --text-sec:     #aaaaaa;
+      --text-muted:   #666666;
+      --border:       #2e2e2e;
+      --shadow:       rgba(0,0,0,.3);
+      --shadow-hover: rgba(0,0,0,.5);
+      --placeholder:  #2a2a2a;
+      --accent:       #ff3b3b;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────── */
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-      background: #f4f4f4;
-      color: #111;
+      background: var(--bg);
+      color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: background .2s, color .2s;
     }
 
     header {
-      background: #fff;
-      border-bottom: 3px solid #d0021b;
+      background: var(--surface);
+      border-bottom: 3px solid var(--accent);
       padding: 12px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
+      transition: background .2s;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .brand { display: flex; align-items: center; gap: 10px; }
 
     .brand-name {
       font-size: 20px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      color: #d0021b;
+      color: var(--accent);
     }
 
     .brand-section {
       font-size: 13px;
-      color: #555;
+      color: var(--text-sec);
       font-weight: 500;
-      border-left: 1px solid #ddd;
+      border-left: 1px solid var(--border);
       padding-left: 10px;
     }
 
-    .refresh-info {
-      font-size: 11px;
-      color: #999;
-    }
+    .refresh-info { font-size: 11px; color: var(--text-muted); }
 
+    /* ── Feed ────────────────────────────────────────────────────────── */
     #feed {
       flex: 1;
       overflow-y: auto;
@@ -62,21 +86,22 @@
       gap: 12px;
     }
 
+    /* ── Cards ───────────────────────────────────────────────────────── */
     .card {
-      background: #fff;
+      background: var(--surface);
       border-radius: 6px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      box-shadow: 0 1px 3px var(--shadow);
       display: flex;
       gap: 14px;
       padding: 14px;
       cursor: pointer;
-      transition: box-shadow .15s, transform .15s;
+      transition: box-shadow .15s, transform .15s, background .2s;
       text-decoration: none;
       color: inherit;
     }
 
     .card:hover {
-      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      box-shadow: 0 4px 14px var(--shadow-hover);
       transform: translateY(-1px);
     }
 
@@ -86,7 +111,7 @@
       object-fit: cover;
       border-radius: 4px;
       flex-shrink: 0;
-      background: #eee;
+      background: var(--placeholder);
     }
 
     .card-thumb-placeholder {
@@ -94,11 +119,11 @@
       height: 72px;
       border-radius: 4px;
       flex-shrink: 0;
-      background: #f0f0f0;
+      background: var(--placeholder);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #ccc;
+      color: var(--text-muted);
       font-size: 22px;
     }
 
@@ -114,7 +139,7 @@
       font-size: 14px;
       font-weight: 700;
       line-height: 1.35;
-      color: #111;
+      color: var(--text);
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -123,7 +148,7 @@
 
     .card-desc {
       font-size: 12px;
-      color: #555;
+      color: var(--text-sec);
       line-height: 1.45;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -131,28 +156,24 @@
       overflow: hidden;
     }
 
-    .card-meta {
-      font-size: 11px;
-      color: #999;
-      margin-top: auto;
-    }
+    .card-meta { font-size: 11px; color: var(--text-muted); margin-top: auto; }
 
+    /* ── States ──────────────────────────────────────────────────────── */
     .status {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: #999;
+      color: var(--text-muted);
       gap: 10px;
       font-size: 13px;
     }
 
     .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid #eee;
-      border-top-color: #d0021b;
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin .7s linear infinite;
     }
@@ -175,10 +196,27 @@
 </div>
 
 <script>
-  const FEED_URL  = 'http://feeds.nbcnews.com/feeds/topstories';
-  const PROXY_URL = `http://localhost:8080/rss-proxy?url=${encodeURIComponent(FEED_URL)}`;
+  const FEED_URL   = 'http://feeds.nbcnews.com/feeds/topstories';
+  const PROXY_URL  = `http://localhost:8080/rss-proxy?url=${encodeURIComponent(FEED_URL)}`;
   const REFRESH_MS = 5 * 60 * 1000;
 
+  // ── Theming ───────────────────────────────────────────────────────────
+  function applyScheme(scheme) {
+    document.documentElement.classList.toggle('dark', scheme === 'dark');
+  }
+
+  async function initTheme() {
+    try {
+      const scheme = await fin.Platform.Theme.getSelectedScheme();
+      applyScheme(scheme);
+      fin.Platform.Theme.addEventListener('scheme-changed', e => applyScheme(e.scheme));
+    } catch {
+      // Not running inside OpenFin — respect OS preference as fallback
+      applyScheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+  }
+
+  // ── Feed ──────────────────────────────────────────────────────────────
   function timeAgo(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.round(diff / 60000);
@@ -190,33 +228,36 @@
   }
 
   function getThumb(item) {
-    // Try media:thumbnail, media:content, enclosure
     const ns = 'http://search.yahoo.com/mrss/';
-    const thumb = item.getElementsByTagNameNS(ns, 'thumbnail')[0]
-                || item.getElementsByTagNameNS(ns, 'content')[0];
-    if (thumb) return thumb.getAttribute('url');
+    const el = item.getElementsByTagNameNS(ns, 'thumbnail')[0]
+            || item.getElementsByTagNameNS(ns, 'content')[0];
+    if (el) return el.getAttribute('url');
     const enc = item.querySelector('enclosure');
-    if (enc && enc.getAttribute('type')?.startsWith('image')) return enc.getAttribute('url');
+    if (enc?.getAttribute('type')?.startsWith('image')) return enc.getAttribute('url');
     return null;
+  }
+
+  function makePlaceholder() {
+    const d = document.createElement('div');
+    d.className = 'card-thumb-placeholder';
+    d.textContent = '📰';
+    return d;
   }
 
   async function loadFeed() {
     const feed = document.getElementById('feed');
     try {
-      const res = await fetch(PROXY_URL);
+      const res  = await fetch(PROXY_URL);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const xml  = new DOMParser().parseFromString(text, 'application/xml');
+      const xml  = new DOMParser().parseFromString(await res.text(), 'application/xml');
       const items = Array.from(xml.querySelectorAll('item'));
-
       if (!items.length) throw new Error('No items in feed');
 
       feed.innerHTML = '';
       for (const item of items) {
         const title   = item.querySelector('title')?.textContent?.trim() ?? '';
         const desc    = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g, '').trim() ?? '';
-        const link    = item.querySelector('link')?.textContent?.trim()
-                     ?? item.querySelector('link')?.getAttribute('href') ?? '#';
+        const link    = item.querySelector('link')?.textContent?.trim() ?? '#';
         const pubDate = item.querySelector('pubDate')?.textContent?.trim() ?? '';
         const thumb   = getThumb(item);
 
@@ -226,18 +267,21 @@
         card.target = '_blank';
         card.rel = 'noopener';
 
-        const imgHtml = thumb
-          ? `<img class="card-thumb" src="${thumb}" alt="" loading="lazy" onerror="this.replaceWith(makePlaceholder())">`
-          : `<div class="card-thumb-placeholder">📰</div>`;
+        const imgEl = thumb
+          ? Object.assign(document.createElement('img'), {
+              className: 'card-thumb', src: thumb, alt: '', loading: 'lazy',
+              onerror() { this.replaceWith(makePlaceholder()); }
+            })
+          : makePlaceholder();
 
-        card.innerHTML = `
-          ${imgHtml}
-          <div class="card-body">
-            <div class="card-title">${title}</div>
-            ${desc ? `<div class="card-desc">${desc}</div>` : ''}
-            <div class="card-meta">${pubDate ? timeAgo(pubDate) : ''}</div>
-          </div>`;
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        body.innerHTML = `
+          <div class="card-title">${title}</div>
+          ${desc ? `<div class="card-desc">${desc}</div>` : ''}
+          <div class="card-meta">${pubDate ? timeAgo(pubDate) : ''}</div>`;
 
+        card.append(imgEl, body);
         feed.appendChild(card);
       }
 
@@ -249,13 +293,7 @@
     }
   }
 
-  function makePlaceholder() {
-    const d = document.createElement('div');
-    d.className = 'card-thumb-placeholder';
-    d.textContent = '📰';
-    return d;
-  }
-
+  initTheme();
   loadFeed();
   setInterval(loadFeed, REFRESH_MS);
 </script>
