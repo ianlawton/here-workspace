@@ -19,6 +19,25 @@
 		"tags": ["view", "media", "news", "live", "bloomberg"]
 	},
 	{
+		"appId": "nbc-news",
+		"name": "nbc-news",
+		"title": "NBC News",
+		"description": "Live top stories from NBC News, refreshed every 5 minutes.",
+		"manifest": "http://localhost:8080/views/nbc-news/nbc-news.view.fin.json",
+		"manifestType": "view",
+		"icons": [
+			{
+				"src": "http://localhost:8080/common/images/favicon-32x32.png"
+			}
+		],
+		"contactEmail": "contact@example.com",
+		"supportEmail": "support@example.com",
+		"publisher": "NBC News",
+		"intents": [],
+		"images": [],
+		"tags": ["view", "news", "rss", "nbc"]
+	},
+	{
 		"appId": "openfin-information",
 		"name": "openfin-information",
 		"title": "OpenFin Information",

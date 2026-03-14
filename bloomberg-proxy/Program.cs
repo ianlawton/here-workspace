@@ -46,6 +46,18 @@ app.MapGet("/bloomberg-stream", async (HttpContext ctx, CancellationToken ct) =>
     }
 });
 
+// RSS proxy — fetches the feed server-side to avoid CORS restrictions
+app.MapGet("/rss-proxy", async (HttpContext ctx, [Microsoft.AspNetCore.Mvc.FromQuery] string url) =>
+{
+    using var http = new HttpClient();
+    http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    var xml = await http.GetStringAsync(url);
+    ctx.Response.ContentType = "application/xml; charset=utf-8";
+    ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
+    ctx.Response.Headers["Cache-Control"] = "max-age=120";
+    await ctx.Response.WriteAsync(xml);
+});
+
 var port = app.Configuration["Server:Port"] ?? "8080";
 Console.WriteLine($"[Server] Listening on http://localhost:{port}");
 Console.WriteLine($"[Server] Serving static files from: {publicPath}");

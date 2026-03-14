@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NBC News — Top Stories</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #f4f4f4;
+      color: #111;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 3px solid #d0021b;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-name {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #d0021b;
+    }
+
+    .brand-section {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+      border-left: 1px solid #ddd;
+      padding-left: 10px;
+    }
+
+    .refresh-info {
+      font-size: 11px;
+      color: #999;
+    }
+
+    #feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      display: flex;
+      gap: 14px;
+      padding: 14px;
+      cursor: pointer;
+      transition: box-shadow .15s, transform .15s;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      transform: translateY(-1px);
+    }
+
+    .card-thumb {
+      width: 110px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: #eee;
+    }
+
+    .card-thumb-placeholder {
+      width: 110px;
+      height: 72px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ccc;
+      font-size: 22px;
+    }
+
+    .card-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #111;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-meta {
+      font-size: 11px;
+      color: #999;
+      margin-top: auto;
+    }
+
+    .status {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #eee;
+      border-top-color: #d0021b;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-name">NBC NEWS</span>
+    <span class="brand-section">Top Stories</span>
+  </div>
+  <span class="refresh-info" id="refresh-info">Refreshes every 5 min</span>
+</header>
+
+<div id="feed">
+  <div class="status"><div class="spinner"></div><span>Loading…</span></div>
+</div>
+
+<script>
+  const FEED_URL  = 'http://feeds.nbcnews.com/feeds/topstories';
+  const PROXY_URL = `http://localhost:8080/rss-proxy?url=${encodeURIComponent(FEED_URL)}`;
+  const REFRESH_MS = 5 * 60 * 1000;
+
+  function timeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.round(diff / 60000);
+    if (mins < 1)  return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  }
+
+  function getThumb(item) {
+    // Try media:thumbnail, media:content, enclosure
+    const ns = 'http://search.yahoo.com/mrss/';
+    const thumb = item.getElementsByTagNameNS(ns, 'thumbnail')[0]
+                || item.getElementsByTagNameNS(ns, 'content')[0];
+    if (thumb) return thumb.getAttribute('url');
+    const enc = item.querySelector('enclosure');
+    if (enc && enc.getAttribute('type')?.startsWith('image')) return enc.getAttribute('url');
+    return null;
+  }
+
+  async function loadFeed() {
+    const feed = document.getElementById('feed');
+    try {
+      const res = await fetch(PROXY_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const xml  = new DOMParser().parseFromString(text, 'application/xml');
+      const items = Array.from(xml.querySelectorAll('item'));
+
+      if (!items.length) throw new Error('No items in feed');
+
+      feed.innerHTML = '';
+      for (const item of items) {
+        const title   = item.querySelector('title')?.textContent?.trim() ?? '';
+        const desc    = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g, '').trim() ?? '';
+        const link    = item.querySelector('link')?.textContent?.trim()
+                     ?? item.querySelector('link')?.getAttribute('href') ?? '#';
+        const pubDate = item.querySelector('pubDate')?.textContent?.trim() ?? '';
+        const thumb   = getThumb(item);
+
+        const card = document.createElement('a');
+        card.className = 'card';
+        card.href = link;
+        card.target = '_blank';
+        card.rel = 'noopener';
+
+        const imgHtml = thumb
+          ? `<img class="card-thumb" src="${thumb}" alt="" loading="lazy" onerror="this.replaceWith(makePlaceholder())">`
+          : `<div class="card-thumb-placeholder">📰</div>`;
+
+        card.innerHTML = `
+          ${imgHtml}
+          <div class="card-body">
+            <div class="card-title">${title}</div>
+            ${desc ? `<div class="card-desc">${desc}</div>` : ''}
+            <div class="card-meta">${pubDate ? timeAgo(pubDate) : ''}</div>
+          </div>`;
+
+        feed.appendChild(card);
+      }
+
+      document.getElementById('refresh-info').textContent =
+        `Updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · refreshes every 5 min`;
+
+    } catch (err) {
+      feed.innerHTML = `<div class="status"><span>⚠ Could not load feed: ${err.message}</span></div>`;
+    }
+  }
+
+  function makePlaceholder() {
+    const d = document.createElement('div');
+    d.className = 'card-thumb-placeholder';
+    d.textContent = '📰';
+    return d;
+  }
+
+  loadFeed();
+  setInterval(loadFeed, REFRESH_MS);
+</script>
+</body>
+</html>
