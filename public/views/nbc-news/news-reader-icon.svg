@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#1a1a2e"/>
+  <!-- Newspaper body -->
+  <rect x="5" y="7" width="16" height="20" rx="2" fill="#e8e8e8"/>
+  <!-- Folded corner -->
+  <path d="M17 7 L21 7 L21 11 Z" fill="#b0b0b0"/>
+  <rect x="17" y="7" width="4" height="4" rx="0" fill="#c8c8c8"/>
+  <!-- Headline bar -->
+  <rect x="7" y="10" width="10" height="3" rx="1" fill="#d0021b"/>
+  <!-- Text lines -->
+  <rect x="7" y="15" width="12" height="1.5" rx="0.75" fill="#999"/>
+  <rect x="7" y="18" width="10" height="1.5" rx="0.75" fill="#999"/>
+  <rect x="7" y="21" width="11" height="1.5" rx="0.75" fill="#999"/>
+  <!-- RSS dot accent -->
+  <circle cx="25" cy="24" r="5" fill="#d0021b"/>
+  <circle cx="25" cy="24" r="1.5" fill="#fff"/>
+  <path d="M22 27 Q22 22 27 22" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M22 29 Q22 20 29 20" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.6"/>
+</svg>

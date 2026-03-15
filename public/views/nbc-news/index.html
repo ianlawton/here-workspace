@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NBC News — Top Stories</title>
+  <title>News Reader</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -49,32 +49,56 @@
     header {
       background: var(--surface);
       border-bottom: 3px solid var(--accent);
-      padding: 12px 20px;
+      padding: 10px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
+      gap: 16px;
       transition: background .2s;
     }
 
-    .brand { display: flex; align-items: center; gap: 10px; }
-
     .brand-name {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 800;
       letter-spacing: -0.5px;
       color: var(--accent);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
-    .brand-section {
-      font-size: 13px;
+    /* ── Feed tabs ───────────────────────────────────────────────────── */
+    .feed-tabs {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .feed-tab {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
       color: var(--text-sec);
-      font-weight: 500;
-      border-left: 1px solid var(--border);
-      padding-left: 10px;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+      white-space: nowrap;
     }
 
-    .refresh-info { font-size: 11px; color: var(--text-muted); }
+    .feed-tab:hover {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .feed-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .refresh-info { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 
     /* ── Feed ────────────────────────────────────────────────────────── */
     #feed {
@@ -112,19 +136,6 @@
       border-radius: 4px;
       flex-shrink: 0;
       background: var(--placeholder);
-    }
-
-    .card-thumb-placeholder {
-      width: 110px;
-      height: 72px;
-      border-radius: 4px;
-      flex-shrink: 0;
-      background: var(--placeholder);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-size: 22px;
     }
 
     .card-body {
@@ -184,10 +195,8 @@
 <body>
 
 <header>
-  <div class="brand">
-    <span class="brand-name">NBC NEWS</span>
-    <span class="brand-section">Top Stories</span>
-  </div>
+  <span class="brand-name">NEWS READER</span>
+  <div class="feed-tabs" id="feed-tabs"></div>
   <span class="refresh-info" id="refresh-info">Refreshes every 5 min</span>
 </header>
 
@@ -196,9 +205,14 @@
 </div>
 
 <script>
-  const FEED_URL   = 'http://feeds.nbcnews.com/feeds/topstories';
-  const PROXY_URL  = `http://localhost:8080/rss-proxy?url=${encodeURIComponent(FEED_URL)}`;
+  const FEEDS = [
+    { id: 'nbc',        label: 'NBC News',    url: 'http://feeds.nbcnews.com/feeds/topstories' },
+    { id: 'livecharts', label: 'Live Charts', url: 'https://www.livecharts.co.uk/livewire/feed/' },
+  ];
+
   const REFRESH_MS = 5 * 60 * 1000;
+  let activeFeedId = FEEDS[0].id;
+  let refreshTimer = null;
 
   // ── Theming ───────────────────────────────────────────────────────────
   function applyScheme(scheme) {
@@ -207,21 +221,39 @@
   }
 
   async function initTheme() {
-    // Apply dark immediately — workspace defaults to dark
     applyScheme('dark');
-
     try {
       fin.InterApplicationBus.subscribe({ uuid: '*' }, 'color-scheme', (scheme) => {
         applyScheme(scheme);
       }).then(() => {
-        // Request current scheme once subscribed; retry after 2s in case provider wasn't ready
         fin.InterApplicationBus.publish('color-scheme-request', null);
         setTimeout(() => fin.InterApplicationBus.publish('color-scheme-request', null), 2000);
       });
     } catch {
-      // Not running inside OpenFin — respect OS preference as fallback
       applyScheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     }
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────
+  function renderTabs() {
+    const container = document.getElementById('feed-tabs');
+    container.innerHTML = '';
+    for (const feed of FEEDS) {
+      const btn = document.createElement('button');
+      btn.className = 'feed-tab' + (feed.id === activeFeedId ? ' active' : '');
+      btn.textContent = feed.label;
+      btn.onclick = () => selectFeed(feed.id);
+      container.appendChild(btn);
+    }
+  }
+
+  function selectFeed(id) {
+    if (id === activeFeedId) return;
+    activeFeedId = id;
+    renderTabs();
+    clearInterval(refreshTimer);
+    loadFeed();
+    refreshTimer = setInterval(loadFeed, REFRESH_MS);
   }
 
   // ── Feed ──────────────────────────────────────────────────────────────
@@ -245,23 +277,19 @@
     return null;
   }
 
-  function makePlaceholder() {
-    const d = document.createElement('div');
-    d.className = 'card-thumb-placeholder';
-    d.textContent = '📰';
-    return d;
-  }
-
   async function loadFeed() {
-    const feed = document.getElementById('feed');
+    const feedEl = document.getElementById('feed');
+    const feedCfg = FEEDS.find(f => f.id === activeFeedId);
+    const proxyUrl = `http://localhost:8080/rss-proxy?url=${encodeURIComponent(feedCfg.url)}`;
     try {
-      const res  = await fetch(PROXY_URL);
+      feedEl.innerHTML = '<div class="status"><div class="spinner"></div><span>Loading…</span></div>';
+      const res  = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const xml  = new DOMParser().parseFromString(await res.text(), 'application/xml');
       const items = Array.from(xml.querySelectorAll('item'));
       if (!items.length) throw new Error('No items in feed');
 
-      feed.innerHTML = '';
+      feedEl.innerHTML = '';
       for (const item of items) {
         const title   = item.querySelector('title')?.textContent?.trim() ?? '';
         const desc    = item.querySelector('description')?.textContent?.replace(/<[^>]+>/g, '').trim() ?? '';
@@ -275,13 +303,6 @@
         card.target = '_blank';
         card.rel = 'noopener';
 
-        const imgEl = thumb
-          ? Object.assign(document.createElement('img'), {
-              className: 'card-thumb', src: thumb, alt: '', loading: 'lazy',
-              onerror() { this.replaceWith(makePlaceholder()); }
-            })
-          : makePlaceholder();
-
         const body = document.createElement('div');
         body.className = 'card-body';
         body.innerHTML = `
@@ -289,21 +310,29 @@
           ${desc ? `<div class="card-desc">${desc}</div>` : ''}
           <div class="card-meta">${pubDate ? timeAgo(pubDate) : ''}</div>`;
 
-        card.append(imgEl, body);
-        feed.appendChild(card);
+        if (thumb) {
+          const imgEl = Object.assign(document.createElement('img'), {
+            className: 'card-thumb', src: thumb, alt: '', loading: 'lazy',
+            onerror() { this.remove(); }
+          });
+          card.append(imgEl);
+        }
+        card.append(body);
+        feedEl.appendChild(card);
       }
 
       document.getElementById('refresh-info').textContent =
         `Updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · refreshes every 5 min`;
 
     } catch (err) {
-      feed.innerHTML = `<div class="status"><span>⚠ Could not load feed: ${err.message}</span></div>`;
+      feedEl.innerHTML = `<div class="status"><span>⚠ Could not load feed: ${err.message}</span></div>`;
     }
   }
 
   initTheme();
+  renderTabs();
   loadFeed();
-  setInterval(loadFeed, REFRESH_MS);
+  refreshTimer = setInterval(loadFeed, REFRESH_MS);
 </script>
 </body>
 </html>

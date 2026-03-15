@@ -21,21 +21,21 @@
 	{
 		"appId": "nbc-news",
 		"name": "nbc-news",
-		"title": "NBC News",
-		"description": "Live top stories from NBC News, refreshed every 5 minutes.",
+		"title": "News Reader",
+		"description": "Multi-source RSS news reader — NBC News, Live Charts, and more.",
 		"manifest": "http://localhost:8080/views/nbc-news/nbc-news.view.fin.json",
 		"manifestType": "view",
 		"icons": [
 			{
-				"src": "http://localhost:8080/common/images/favicon-32x32.png"
+				"src": "http://localhost:8080/views/nbc-news/news-reader-icon.svg"
 			}
 		],
 		"contactEmail": "contact@example.com",
 		"supportEmail": "support@example.com",
-		"publisher": "NBC News",
+		"publisher": "HERE",
 		"intents": [],
 		"images": [],
-		"tags": ["view", "news", "rss", "nbc"]
+		"tags": ["view", "news", "rss", "markets"]
 	},
 	{
 		"appId": "openfin-information",
